@@ -1,0 +1,126 @@
+// Prisma schema for AI Expert Roundtable Web
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  image        String?
+  apiKeys      ApiKey[]
+  discussions  Discussion[]
+  expertPanels ExpertPanel[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  provider  String // "openrouter" | "openai"
+  key       String // encrypted
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model ExpertPanel {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean      @default(false)
+  isPublic    Boolean      @default(false)
+  experts     Expert[]
+  discussions Discussion[]
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([isPublic])
+}
+
+model Expert {
+  id           String      @id @default(cuid())
+  name         String
+  role         String
+  personality  String
+  expertise    String[] // Array of expertise areas
+  systemPrompt String      @db.Text
+  color        String      @default("#6366f1")
+  avatar       String?
+  panelId      String
+  panel        ExpertPanel @relation(fields: [panelId], references: [id], onDelete: Cascade)
+  messages     Message[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([panelId])
+}
+
+model Discussion {
+  id            String           @id @default(cuid())
+  title         String
+  topic         String           @db.Text
+  status        DiscussionStatus @default(PENDING)
+  totalRounds   Int              @default(4)
+  currentRound  Int              @default(0)
+  language      String           @default("en")
+  model         String // e.g., "openai/gpt-4o"
+  moderatorMode Boolean          @default(false)
+  messages      Message[]
+  panelId       String
+  panel         ExpertPanel      @relation(fields: [panelId], references: [id])
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metadata      Json? // Additional settings
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([panelId])
+}
+
+model Message {
+  id           String      @id @default(cuid())
+  content      String      @db.Text
+  role         MessageRole // EXPERT | MODERATOR | SYSTEM
+  round        Int
+  debateStyle  String? // agreeable, challenging, etc.
+  responseTo   String? // Reference to previous speaker
+  expertId     String?
+  expert       Expert?     @relation(fields: [expertId], references: [id], onDelete: SetNull)
+  discussionId String
+  discussion   Discussion  @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  @@index([discussionId])
+  @@index([expertId])
+}
+
+enum DiscussionStatus {
+  PENDING
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum MessageRole {
+  EXPERT
+  MODERATOR
+  SYSTEM
+}

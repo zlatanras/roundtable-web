@@ -1,0 +1,31 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Header } from "@/components/layout/Header";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "AI Expert Roundtable",
+  description: "Multi-agent discussion platform for AI-powered expert debates",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${inter.variable} font-sans antialiased bg-slate-50 dark:bg-slate-950 min-h-screen`}
+      >
+        <Header />
+        <main>{children}</main>
+      </body>
+    </html>
+  );
+}
