@@ -308,7 +308,7 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
 
     try {
       for await (const token of this.llmClient.generateStream(prompt, {
-        maxTokens: 450,
+        maxTokens: 1000,
         temperature,
       })) {
         fullContent += token;
