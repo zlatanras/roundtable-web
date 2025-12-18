@@ -6,7 +6,7 @@
  */
 
 import { LLMClient } from './llm-client';
-import { Expert, Message, DebateStyle, SSEEvent } from '@/types';
+import { Expert, Message, DebateStyle, SSEEvent, DiscussionSummary } from '@/types';
 import { shuffleArray, randomChoice } from '@/lib/utils';
 
 // Debate styles with their instructions
@@ -431,6 +431,89 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
   }
 
   /**
+   * Generate a comprehensive summary of the discussion
+   */
+  async generateSummary(): Promise<DiscussionSummary> {
+    const allMessages = this.state.messages
+      .filter(m => m.role === 'EXPERT')
+      .map(m => `${m.expert?.name} (${m.expert?.role}): ${m.content}`)
+      .join('\n\n');
+
+    const expertNames = this.config.experts.map(e => e.name).join(', ');
+
+    const languageInstruction = this.config.language === 'de'
+      ? 'WICHTIG: Antworte auf Deutsch!'
+      : this.config.language === 'en'
+        ? 'IMPORTANT: Respond in English!'
+        : `IMPORTANT: Respond in ${this.config.language}!`;
+
+    const summaryPrompt = `You are a professional meeting moderator. Analyze this expert discussion and provide a structured summary.
+
+${languageInstruction}
+
+DISCUSSION TOPIC: ${this.config.topic}
+
+PARTICIPANTS: ${expertNames}
+
+DISCUSSION TRANSCRIPT:
+${allMessages}
+
+Provide a JSON response with exactly this structure (no markdown, just pure JSON):
+{
+  "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
+  "actionItems": ["action 1", "action 2", "action 3"],
+  "sentiment": "positive" | "neutral" | "mixed" | "negative",
+  "sentimentExplanation": "brief explanation of overall sentiment",
+  "consensusLevel": 0.0-1.0,
+  "consensusExplanation": "brief explanation of agreement level",
+  "nextSteps": "recommended next steps in 1-2 sentences"
+}
+
+Guidelines:
+- keyTakeaways: 3-5 most important insights from the discussion
+- actionItems: 3-5 concrete, actionable to-dos with clear ownership suggestions
+- sentiment: overall tone of the discussion
+- consensusLevel: how much the experts agreed (0=complete disagreement, 1=full agreement)
+- nextSteps: practical recommendation for moving forward
+- ${languageInstruction}
+
+Respond ONLY with valid JSON, no additional text.`;
+
+    try {
+      const response = await this.defaultLlmClient.generateResponse(summaryPrompt, {
+        maxTokens: 1000,
+        temperature: 0.3,
+      });
+
+      // Parse the JSON response
+      const cleanedResponse = response.replace(/```json\n?|\n?```/g, '').trim();
+      const parsed = JSON.parse(cleanedResponse);
+
+      return {
+        keyTakeaways: parsed.keyTakeaways || [],
+        actionItems: parsed.actionItems || [],
+        sentiment: parsed.sentiment || 'neutral',
+        sentimentExplanation: parsed.sentimentExplanation || '',
+        consensusLevel: typeof parsed.consensusLevel === 'number' ? parsed.consensusLevel : this.state.consensusScore,
+        consensusExplanation: parsed.consensusExplanation || '',
+        nextSteps: parsed.nextSteps || '',
+      };
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+      // Return a fallback summary
+      return {
+        keyTakeaways: ['Discussion completed successfully'],
+        actionItems: ['Review the discussion transcript for detailed insights'],
+        sentiment: 'neutral',
+        sentimentExplanation: 'Unable to analyze sentiment',
+        consensusLevel: this.state.consensusScore,
+        consensusExplanation: 'Based on automated consensus scoring',
+        nextSteps: 'Review the expert recommendations and prioritize next steps.',
+      };
+    }
+  }
+
+  /**
    * Run the complete discussion
    */
   async *runDiscussion(): AsyncGenerator<SSEEvent, void, unknown> {
@@ -449,6 +532,12 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
             event.consensusScore > 0.85 &&
             round >= 3
           ) {
+            // Generate summary before completing
+            const summary = await this.generateSummary();
+            yield {
+              type: 'discussion_summary',
+              summary,
+            };
             yield {
               type: 'discussion_complete',
               discussionId: '',
@@ -457,6 +546,13 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
           }
         }
       }
+
+      // Generate summary at the end
+      const summary = await this.generateSummary();
+      yield {
+        type: 'discussion_summary',
+        summary,
+      };
 
       yield {
         type: 'discussion_complete',
