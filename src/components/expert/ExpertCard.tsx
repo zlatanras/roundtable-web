@@ -1,10 +1,16 @@
 'use client';
 
-import { Expert } from '@/types';
+import { Expert, AVAILABLE_MODELS } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ExpertAvatar } from '@/components/discussion/ExpertAvatar';
 import { cn } from '@/lib/utils';
+
+function getModelDisplayName(modelId: string | null | undefined): string {
+  if (!modelId) return 'Default';
+  const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+  return model?.name || modelId.split('/').pop() || 'Unknown';
+}
 
 interface ExpertCardProps {
   expert: Expert;
@@ -41,6 +47,11 @@ export function ExpertCard({
           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
             {expert.role}
           </p>
+          {expert.aiModel && (
+            <Badge variant="outline" className="text-[10px] mt-1 px-1.5 py-0">
+              {getModelDisplayName(expert.aiModel)}
+            </Badge>
+          )}
         </div>
       </div>
     );
@@ -86,6 +97,13 @@ export function ExpertCard({
             </Badge>
           )}
         </div>
+        {expert.aiModel && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Badge variant="outline" className="text-xs">
+              AI: {getModelDisplayName(expert.aiModel)}
+            </Badge>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

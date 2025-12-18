@@ -13,6 +13,7 @@ export interface Expert {
   systemPrompt: string;
   color: string;
   avatar?: string | null;
+  aiModel?: string | null; // Optional AI model override
   panelId: string;
 }
 
@@ -94,6 +95,7 @@ export interface CreateExpertRequest {
   systemPrompt: string;
   color?: string;
   avatar?: string;
+  aiModel?: string;
 }
 
 // SSE Event Types
@@ -184,6 +186,7 @@ export const DEFAULT_EXPERTS: Omit<Expert, 'id' | 'panelId'>[] = [
 
 Keep responses concise, strategic, and business-focused. Always think about scalability and profitability.`,
     color: '#22c55e',
+    aiModel: 'openai/gpt-4o',
   },
   {
     name: 'Marcus',
@@ -199,6 +202,7 @@ Keep responses concise, strategic, and business-focused. Always think about scal
 
 Provide practical, implementable technical solutions. Consider maintenance and scalability.`,
     color: '#3b82f6',
+    aiModel: 'openai/gpt-4o',
   },
   {
     name: 'Lisa',
@@ -214,6 +218,7 @@ Provide practical, implementable technical solutions. Consider maintenance and s
 
 Always think about search visibility and user intent. Provide actionable SEO strategies.`,
     color: '#a855f7',
+    aiModel: 'openai/gpt-4o',
   },
   {
     name: 'Tom',
@@ -229,6 +234,7 @@ Always think about search visibility and user intent. Provide actionable SEO str
 
 Think about sustainable content creation and audience value. Balance automation with human touch.`,
     color: '#f97316',
+    aiModel: 'openai/gpt-4o',
   },
   {
     name: 'Nina',
@@ -244,5 +250,6 @@ Think about sustainable content creation and audience value. Balance automation 
 
 Think about building authentic local communities and driving traffic back to the main platform.`,
     color: '#ec4899',
+    aiModel: 'openai/gpt-4o',
   },
 ];

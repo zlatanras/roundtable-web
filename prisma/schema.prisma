@@ -58,6 +58,7 @@ model Expert {
   systemPrompt String      @db.Text
   color        String      @default("#6366f1")
   avatar       String?
+  aiModel      String?     // Optional AI model override (e.g., "openai/gpt-4o")
   panelId      String
   panel        ExpertPanel @relation(fields: [panelId], references: [id], onDelete: Cascade)
   messages     Message[]
