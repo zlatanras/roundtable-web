@@ -24,6 +24,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
     consensusScore,
     summary,
     status,
+    topic,
     moderatorMode,
     showModeratorInput,
   } = useDiscussionStore();
@@ -58,6 +59,27 @@ export function ChatPanel({ className }: ChatPanelProps) {
     >
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Topic/Prompt Header */}
+        {topic && (
+          <div className="p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/50 dark:to-purple-950/50 border border-indigo-200 dark:border-indigo-800">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-1">
+                  Diskussionsthema
+                </h3>
+                <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {topic}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {rounds.map((round) => (
           <div key={round} className="space-y-4">
             {/* Round header */}

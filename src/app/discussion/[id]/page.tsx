@@ -7,9 +7,10 @@ import { ChatPanel } from '@/components/discussion/ChatPanel';
 import { ExpertCard } from '@/components/expert/ExpertCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Discussion, SSEEvent } from '@/types';
 import { truncate } from '@/lib/utils';
+import { exportDiscussion } from '@/lib/export';
 
 export default function DiscussionPage() {
   const params = useParams();
@@ -19,14 +20,35 @@ export default function DiscussionPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const {
     setDiscussion: setStoreDiscussion,
     handleSSEEvent,
     status,
     streamingExpert,
     experts,
+    messages,
+    summary,
     reset,
   } = useDiscussionStore();
+
+  // Export discussion
+  const handleExport = useCallback((format: 'markdown' | 'text') => {
+    if (!discussion) return;
+
+    exportDiscussion({
+      title: discussion.title,
+      topic: discussion.topic,
+      experts,
+      messages,
+      summary,
+      language: discussion.language,
+      createdAt: discussion.createdAt?.toString() || new Date().toISOString(),
+    }, format);
+
+    setShowExportMenu(false);
+  }, [discussion, experts, messages, summary]);
 
   // Fetch discussion data
   useEffect(() => {
@@ -216,9 +238,40 @@ export default function DiscussionPage() {
             </div>
           )}
           {status === 'COMPLETED' && (
-            <Button variant="outline" className="w-full">
-              Export Discussion
-            </Button>
+            <div className="relative">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export
+              </Button>
+              {showExportMenu && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <button
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                    onClick={() => handleExport('markdown')}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Markdown (.md)
+                  </button>
+                  <button
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                    onClick={() => handleExport('text')}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                    Text (.txt)
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
