@@ -131,6 +131,21 @@ export interface DiscussionCompleteEvent {
   discussionId: string;
 }
 
+export interface DiscussionSummary {
+  keyTakeaways: string[];
+  actionItems: string[];
+  sentiment: 'positive' | 'neutral' | 'mixed' | 'negative';
+  sentimentExplanation: string;
+  consensusLevel: number;
+  consensusExplanation: string;
+  nextSteps: string;
+}
+
+export interface DiscussionSummaryEvent {
+  type: 'discussion_summary';
+  summary: DiscussionSummary;
+}
+
 export interface ErrorEvent {
   type: 'error';
   message: string;
@@ -147,6 +162,7 @@ export type SSEEvent =
   | ExpertCompleteEvent
   | RoundCompleteEvent
   | DiscussionCompleteEvent
+  | DiscussionSummaryEvent
   | ErrorEvent
   | ModeratorPromptEvent;
 

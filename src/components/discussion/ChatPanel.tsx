@@ -6,6 +6,7 @@ import { MessageBubble } from './MessageBubble';
 import { RoundIndicator } from './RoundIndicator';
 import { TypingIndicator } from './TypingIndicator';
 import { ModeratorInput } from './ModeratorInput';
+import { DiscussionSummaryCard } from './DiscussionSummaryCard';
 import { cn } from '@/lib/utils';
 
 interface ChatPanelProps {
@@ -21,6 +22,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
     totalRounds,
     experts,
     consensusScore,
+    summary,
     status,
     moderatorMode,
     showModeratorInput,
@@ -143,8 +145,15 @@ export function ChatPanel({ className }: ChatPanelProps) {
           </div>
         )}
 
-        {/* Completed state */}
-        {status === 'COMPLETED' && (
+        {/* Discussion Summary */}
+        {status === 'COMPLETED' && summary && (
+          <div className="py-4">
+            <DiscussionSummaryCard summary={summary} />
+          </div>
+        )}
+
+        {/* Completed state (without summary fallback) */}
+        {status === 'COMPLETED' && !summary && (
           <div className="text-center py-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

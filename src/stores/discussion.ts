@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import { Message, Expert, DiscussionStatus, SSEEvent, DebateStyle } from '@/types';
+import { Message, Expert, DiscussionStatus, SSEEvent, DebateStyle, DiscussionSummary } from '@/types';
 
 interface StreamingExpert {
   id: string;
@@ -34,6 +34,9 @@ interface DiscussionStore {
   // Consensus
   consensusScore: number;
 
+  // Summary
+  summary: DiscussionSummary | null;
+
   // UI State
   isConnected: boolean;
   error: string | null;
@@ -48,6 +51,7 @@ interface DiscussionStore {
   setStatus: (status: DiscussionStatus) => void;
   setRound: (round: number) => void;
   setConsensusScore: (score: number) => void;
+  setSummary: (summary: DiscussionSummary) => void;
   setError: (error: string | null) => void;
   setShowModeratorInput: (show: boolean) => void;
   handleSSEEvent: (event: SSEEvent) => void;
@@ -60,7 +64,7 @@ const initialState = {
   status: 'PENDING' as DiscussionStatus,
   currentRound: 0,
   totalRounds: 4,
-  model: 'openai/gpt-4o',
+  model: 'anthropic/claude-sonnet-4.5',
   language: 'en',
   moderatorMode: false,
   messages: [],
@@ -68,6 +72,7 @@ const initialState = {
   streamingExpert: null,
   experts: [],
   consensusScore: 0,
+  summary: null as DiscussionSummary | null,
   isConnected: false,
   error: null,
   showModeratorInput: false,
@@ -124,6 +129,8 @@ export const useDiscussionStore = create<DiscussionStore>((set, get) => ({
 
   setConsensusScore: (score) => set({ consensusScore: score }),
 
+  setSummary: (summary) => set({ summary }),
+
   setError: (error) => set({ error }),
 
   setShowModeratorInput: (show) => set({ showModeratorInput: show }),
@@ -168,6 +175,10 @@ export const useDiscussionStore = create<DiscussionStore>((set, get) => ({
         if (state.moderatorMode) {
           set({ showModeratorInput: true });
         }
+        break;
+
+      case 'discussion_summary':
+        set({ summary: event.summary });
         break;
 
       case 'discussion_complete':
