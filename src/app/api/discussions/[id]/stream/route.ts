@@ -4,7 +4,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { discussions } from '../../route';
+import { discussions, panels } from '../../route';
 import { DiscussionEngine } from '@/services/discussion-engine';
 import { LLMClient } from '@/services/llm-client';
 import { SSEEvent } from '@/types';
@@ -50,10 +50,13 @@ export async function GET(
           provider: 'openrouter',
         });
 
+        // Fetch the latest panel data (so updated aiModels are used)
+        const latestPanel = panels.get(discussion.panelId) || discussion.panel;
+
         // Initialize discussion engine
         const engine = new DiscussionEngine(llmClient, {
           topic: discussion.topic,
-          experts: discussion.panel.experts,
+          experts: latestPanel.experts,
           language: discussion.language,
           moderatorMode: discussion.moderatorMode,
           totalRounds: discussion.totalRounds,
