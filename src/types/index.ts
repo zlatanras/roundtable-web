@@ -13,6 +13,7 @@ export interface Expert {
   systemPrompt: string;
   color: string;
   avatar?: string | null;
+  aiModel?: string | null; // Optional AI model override
   panelId: string;
 }
 
@@ -94,6 +95,7 @@ export interface CreateExpertRequest {
   systemPrompt: string;
   color?: string;
   avatar?: string;
+  aiModel?: string;
 }
 
 // SSE Event Types
@@ -156,16 +158,13 @@ export interface LLMModel {
 }
 
 export const AVAILABLE_MODELS: LLMModel[] = [
-  { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', provider: 'openrouter' },
-  { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini', provider: 'openrouter' },
-  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter' },
-  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', provider: 'openrouter' },
-  { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B', provider: 'openrouter' },
-  { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', provider: 'openrouter' },
-  { id: 'google/gemini-2.5-pro-preview', name: 'Gemini Pro 2.5', provider: 'openrouter' },
-  { id: 'mistralai/mistral-large', name: 'Mistral Large', provider: 'openrouter' },
-  { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder V2', provider: 'openrouter' },
-  { id: 'openai/gpt-4.1', name: 'OpenAI GPT-4.1', provider: 'openrouter' },
+  { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash', provider: 'openrouter' },
+  { id: 'allenai/olmo-3.1-32b-think:free', name: 'OLMo 3.1 32B Think (Free)', provider: 'openrouter' },
+  { id: 'openai/gpt-5.2', name: 'OpenAI GPT-5.2', provider: 'openrouter' },
+  { id: 'deepseek/deepseek-v3.2-speciale', name: 'DeepSeek V3.2 Speciale', provider: 'openrouter' },
+  { id: 'x-ai/grok-4.1-fast', name: 'Grok 4.1 Fast', provider: 'openrouter' },
+  { id: 'moonshotai/kimi-k2-thinking', name: 'Kimi K2 Thinking', provider: 'openrouter' },
+  { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'openrouter' },
 ];
 
 // Default Expert Panel (NORDticker experts)
@@ -184,6 +183,7 @@ export const DEFAULT_EXPERTS: Omit<Expert, 'id' | 'panelId'>[] = [
 
 Keep responses concise, strategic, and business-focused. Always think about scalability and profitability.`,
     color: '#22c55e',
+    aiModel: 'anthropic/claude-sonnet-4.5',
   },
   {
     name: 'Marcus',
@@ -199,6 +199,7 @@ Keep responses concise, strategic, and business-focused. Always think about scal
 
 Provide practical, implementable technical solutions. Consider maintenance and scalability.`,
     color: '#3b82f6',
+    aiModel: 'openai/gpt-5.2',
   },
   {
     name: 'Lisa',
@@ -214,6 +215,7 @@ Provide practical, implementable technical solutions. Consider maintenance and s
 
 Always think about search visibility and user intent. Provide actionable SEO strategies.`,
     color: '#a855f7',
+    aiModel: 'google/gemini-3-flash-preview',
   },
   {
     name: 'Tom',
@@ -229,6 +231,7 @@ Always think about search visibility and user intent. Provide actionable SEO str
 
 Think about sustainable content creation and audience value. Balance automation with human touch.`,
     color: '#f97316',
+    aiModel: 'deepseek/deepseek-v3.2-speciale',
   },
   {
     name: 'Nina',
@@ -244,5 +247,6 @@ Think about sustainable content creation and audience value. Balance automation 
 
 Think about building authentic local communities and driving traffic back to the main platform.`,
     color: '#ec4899',
+    aiModel: 'x-ai/grok-4.1-fast',
   },
 ];

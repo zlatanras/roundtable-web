@@ -5,6 +5,8 @@ import { ExpertAvatar } from './ExpertAvatar';
 import { Badge } from '@/components/ui/badge';
 import { Message, Expert } from '@/types';
 import { formatDate } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MessageBubbleProps {
   message: Message;
@@ -91,13 +93,13 @@ export function MessageBubble({
         </div>
 
         {/* Message content */}
-        <div className="prose prose-sm dark:prose-invert max-w-none">
-          <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-            {content}
-            {isStreaming && (
-              <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
-            )}
-          </p>
+        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:my-2 prose-strong:text-slate-900 dark:prose-strong:text-slate-100">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {content || ''}
+          </ReactMarkdown>
+          {isStreaming && (
+            <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
+          )}
         </div>
 
         {/* Timestamp */}

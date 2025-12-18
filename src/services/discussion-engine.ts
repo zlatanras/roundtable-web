@@ -41,7 +41,7 @@ interface DiscussionConfig {
   language: string;
   moderatorMode: boolean;
   totalRounds: number;
-  model: string;
+  model: string; // Fallback model if expert doesn't have one
 }
 
 interface DiscussionState {
@@ -54,12 +54,14 @@ interface DiscussionState {
 }
 
 export class DiscussionEngine {
-  private llmClient: LLMClient;
+  private defaultLlmClient: LLMClient;
+  private llmClients: Map<string, LLMClient> = new Map();
   private config: DiscussionConfig;
   private state: DiscussionState;
 
   constructor(llmClient: LLMClient, config: DiscussionConfig) {
-    this.llmClient = llmClient;
+    this.defaultLlmClient = llmClient;
+    this.llmClients.set(llmClient.model, llmClient);
     this.config = config;
     this.state = {
       currentRound: 0,
@@ -69,6 +71,26 @@ export class DiscussionEngine {
       isRunning: false,
       consensusScore: 0,
     };
+  }
+
+  /**
+   * Get or create LLMClient for an expert's model
+   */
+  private getLLMClientForExpert(expert: Expert): LLMClient {
+    const model = expert.aiModel || this.config.model;
+
+    // Return cached client if available
+    if (this.llmClients.has(model)) {
+      return this.llmClients.get(model)!;
+    }
+
+    // Create new client for this model
+    const client = new LLMClient({
+      model,
+      provider: 'openrouter',
+    });
+    this.llmClients.set(model, client);
+    return client;
   }
 
   /**
@@ -261,7 +283,7 @@ ${recentMessages.map(m => `${m.expert?.name || 'Moderator'}: ${m.content.slice(0
 Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
 
     try {
-      const response = await this.llmClient.generateResponse(analysisPrompt, {
+      const response = await this.defaultLlmClient.generateResponse(analysisPrompt, {
         maxTokens: 10,
         temperature: 0.1,
       });
@@ -306,8 +328,11 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
 
     let fullContent = '';
 
+    // Get the LLM client for this expert (uses expert's model or fallback)
+    const llmClient = this.getLLMClientForExpert(expert);
+
     try {
-      for await (const token of this.llmClient.generateStream(prompt, {
+      for await (const token of llmClient.generateStream(prompt, {
         maxTokens: 450,
         temperature,
       })) {
