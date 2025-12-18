@@ -2,34 +2,70 @@
 
 import { useEffect, useState } from 'react';
 import { ExpertCard } from '@/components/expert/ExpertCard';
+import { ExpertEditModal } from '@/components/expert/ExpertEditModal';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExpertPanel } from '@/types';
+import { ExpertPanel, Expert } from '@/types';
 
 export default function ExpertsPage() {
   const [panels, setPanels] = useState<ExpertPanel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
+  const [editingExpert, setEditingExpert] = useState<Expert | null>(null);
+
+  const fetchPanels = async () => {
+    try {
+      const response = await fetch('/api/panels');
+      const data = await response.json();
+      setPanels(data.panels || []);
+      if (data.panels?.length > 0 && !selectedPanelId) {
+        setSelectedPanelId(data.panels[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch panels:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchPanels() {
-      try {
-        const response = await fetch('/api/panels');
-        const data = await response.json();
-        setPanels(data.panels || []);
-        if (data.panels?.length > 0) {
-          setSelectedPanelId(data.panels[0].id);
-        }
-      } catch (error) {
-        console.error('Failed to fetch panels:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
     fetchPanels();
   }, []);
 
   const selectedPanel = panels.find((p) => p.id === selectedPanelId);
+
+  const handleEditExpert = (expert: Expert) => {
+    setEditingExpert(expert);
+  };
+
+  const handleSaveExpert = async (updatedExpert: Expert) => {
+    try {
+      const response = await fetch(
+        `/api/panels/${updatedExpert.panelId}/experts/${updatedExpert.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedExpert),
+        }
+      );
+
+      if (response.ok) {
+        // Refresh panels to get updated data
+        await fetchPanels();
+        setEditingExpert(null);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update expert');
+      }
+    } catch (error) {
+      console.error('Failed to update expert:', error);
+      alert('Failed to update expert');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setEditingExpert(null);
+  };
 
   if (isLoading) {
     return (
@@ -86,11 +122,18 @@ export default function ExpertsPage() {
             {selectedPanel.description && (
               <CardDescription>{selectedPanel.description}</CardDescription>
             )}
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              Klicke auf einen Experten um das KI-Modell zu ändern.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {selectedPanel.experts.map((expert) => (
-                <ExpertCard key={expert.id} expert={expert} />
+                <ExpertCard
+                  key={expert.id}
+                  expert={expert}
+                  onClick={() => handleEditExpert(expert)}
+                />
               ))}
             </div>
           </CardContent>
@@ -105,6 +148,15 @@ export default function ExpertsPage() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Edit Modal */}
+      {editingExpert && (
+        <ExpertEditModal
+          expert={editingExpert}
+          onSave={handleSaveExpert}
+          onClose={handleCloseModal}
+        />
       )}
     </div>
   );

@@ -60,13 +60,24 @@ export function ExpertCard({
   return (
     <Card
       className={cn(
-        'transition-all cursor-pointer hover:shadow-md',
+        'transition-all cursor-pointer hover:shadow-md group relative',
         isSelected && 'ring-2 ring-indigo-500',
-        isActive && 'ring-2 ring-offset-2'
+        isActive && 'ring-2 ring-offset-2',
+        onClick && 'hover:border-indigo-300 dark:hover:border-indigo-700'
       )}
       style={{ '--tw-ring-color': isActive ? expert.color : undefined } as React.CSSProperties}
       onClick={onClick}
     >
+      {/* Edit overlay */}
+      {onClick && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="bg-indigo-600 text-white p-1.5 rounded-full">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </div>
+        </div>
+      )}
       <CardHeader className="pb-3">
         <div className="flex items-start gap-4">
           <ExpertAvatar name={expert.name} color={expert.color} size="lg" isActive={isActive} />
