@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       totalRounds: body.totalRounds || 4,
       currentRound: 0,
       language: body.language || 'en',
-      model: body.model || 'openai/gpt-4o',
+      model: body.model || 'anthropic/claude-sonnet-4.5',
       moderatorMode: body.moderatorMode || false,
       panelId,
       panel,

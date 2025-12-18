@@ -19,7 +19,7 @@ export function DiscussionSetup() {
     topic: '',
     title: '',
     panelId: '',
-    model: 'openai/gpt-4o',
+    model: 'anthropic/claude-sonnet-4.5',
     totalRounds: 4,
     moderatorMode: false,
     language: 'en',
