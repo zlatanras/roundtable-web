@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { useDiscussionStore } from '@/stores/discussion';
 import { MessageBubble } from './MessageBubble';
 import { RoundIndicator } from './RoundIndicator';
@@ -8,26 +8,31 @@ import { TypingIndicator } from './TypingIndicator';
 import { ModeratorInput } from './ModeratorInput';
 import { DiscussionSummaryCard } from './DiscussionSummaryCard';
 import { cn } from '@/lib/utils';
+import { t, isValidLanguage, type Language } from '@/lib/i18n';
 
 interface ChatPanelProps {
   className?: string;
 }
 
 export function ChatPanel({ className }: ChatPanelProps) {
-  const {
-    messages,
-    streamingContent,
-    streamingExpert,
-    currentRound,
-    totalRounds,
-    experts,
-    consensusScore,
-    summary,
-    status,
-    topic,
-    moderatorMode,
-    showModeratorInput,
-  } = useDiscussionStore();
+  // Use individual selectors for better performance
+  // This prevents re-renders when unrelated state changes
+  const messages = useDiscussionStore((state) => state.messages);
+  const streamingContent = useDiscussionStore((state) => state.streamingContent);
+  const streamingExpert = useDiscussionStore((state) => state.streamingExpert);
+  const currentRound = useDiscussionStore((state) => state.currentRound);
+  const totalRounds = useDiscussionStore((state) => state.totalRounds);
+  const experts = useDiscussionStore((state) => state.experts);
+  const consensusScore = useDiscussionStore((state) => state.consensusScore);
+  const summary = useDiscussionStore((state) => state.summary);
+  const status = useDiscussionStore((state) => state.status);
+  const topic = useDiscussionStore((state) => state.topic);
+  const moderatorMode = useDiscussionStore((state) => state.moderatorMode);
+  const showModeratorInput = useDiscussionStore((state) => state.showModeratorInput);
+  const language = useDiscussionStore((state) => state.language);
+
+  // Get validated language for translations
+  const lang: Language = isValidLanguage(language) ? language : 'en';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,15 +44,39 @@ export function ChatPanel({ className }: ChatPanelProps) {
     }
   }, [messages, streamingContent]);
 
-  // Group messages by round
-  const messagesByRound = messages.reduce((acc, msg) => {
-    const round = msg.round || 1;
-    if (!acc[round]) acc[round] = [];
-    acc[round].push(msg);
-    return acc;
-  }, {} as Record<number, typeof messages>);
+  // Memoize message grouping to prevent recalculation on every render
+  const { messagesByRound, rounds } = useMemo(() => {
+    const grouped = messages.reduce((acc, msg) => {
+      const round = msg.round || 1;
+      if (!acc[round]) acc[round] = [];
+      acc[round].push(msg);
+      return acc;
+    }, {} as Record<number, typeof messages>);
 
-  const rounds = Object.keys(messagesByRound).map(Number).sort((a, b) => a - b);
+    const sortedRounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+    return { messagesByRound: grouped, rounds: sortedRounds };
+  }, [messages]);
+
+  // Memoize expert lookup map for O(1) access
+  const expertsById = useMemo(() => {
+    return new Map(experts.map((e) => [e.id, e]));
+  }, [experts]);
+
+  // Memoize streaming expert data
+  const streamingExpertData = useMemo(() => {
+    if (!streamingExpert) return null;
+    return expertsById.get(streamingExpert.id) || {
+      id: streamingExpert.id,
+      name: streamingExpert.name,
+      role: '',
+      personality: '',
+      expertise: [],
+      systemPrompt: '',
+      color: streamingExpert.color,
+      panelId: '',
+    };
+  }, [streamingExpert, expertsById]);
 
   return (
     <div
@@ -70,7 +99,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-1">
-                  Diskussionsthema
+                  {t('discussion.topic', lang)}
                 </h3>
                 <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
                   {topic}
@@ -87,6 +116,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
               round={round}
               totalRounds={totalRounds}
               consensusScore={round === currentRound ? consensusScore : undefined}
+              language={lang}
             />
 
             {/* Messages in this round */}
@@ -95,10 +125,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
                 <MessageBubble
                   key={message.id}
                   message={message}
-                  expert={
-                    message.expert ||
-                    experts.find((e) => e.id === message.expertId)
-                  }
+                  expert={message.expert || expertsById.get(message.expertId || '')}
                 />
               ))}
             </div>
@@ -106,11 +133,11 @@ export function ChatPanel({ className }: ChatPanelProps) {
         ))}
 
         {/* Streaming message */}
-        {streamingExpert && (
+        {streamingExpert && streamingExpertData && (
           <div className="space-y-4">
             {/* Show round indicator if this is a new round */}
             {currentRound > 0 && !rounds.includes(currentRound) && (
-              <RoundIndicator round={currentRound} totalRounds={totalRounds} />
+              <RoundIndicator round={currentRound} totalRounds={totalRounds} language={lang} />
             )}
 
             <MessageBubble
@@ -124,16 +151,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
                 discussionId: '',
                 createdAt: new Date(),
               }}
-              expert={experts.find((e) => e.id === streamingExpert.id) || {
-                id: streamingExpert.id,
-                name: streamingExpert.name,
-                role: '',
-                personality: '',
-                expertise: [],
-                systemPrompt: '',
-                color: streamingExpert.color,
-                panelId: '',
-              }}
+              expert={streamingExpertData}
               isStreaming
               streamingContent={streamingContent}
             />
@@ -162,7 +180,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
                   d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
                 />
               </svg>
-              <p className="text-sm">Start the discussion to see expert responses</p>
+              <p className="text-sm">{t('discussion.start', lang)}</p>
             </div>
           </div>
         )}
@@ -170,7 +188,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
         {/* Discussion Summary */}
         {status === 'COMPLETED' && summary && (
           <div className="py-4">
-            <DiscussionSummaryCard summary={summary} />
+            <DiscussionSummaryCard summary={summary} language={lang} />
           </div>
         )}
 
@@ -181,11 +199,11 @@ export function ChatPanel({ className }: ChatPanelProps) {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Discussion Complete
+              {t('discussion.complete', lang)}
             </div>
             {consensusScore > 0 && (
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-                Final consensus score: {Math.round(consensusScore * 100)}%
+                {t('discussion.consensusScore', lang)}: {Math.round(consensusScore * 100)}%
               </p>
             )}
           </div>
@@ -196,7 +214,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
 
       {/* Moderator input */}
       {moderatorMode && showModeratorInput && status === 'IN_PROGRESS' && (
-        <ModeratorInput />
+        <ModeratorInput language={lang} />
       )}
     </div>
   );

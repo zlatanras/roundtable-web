@@ -137,15 +137,29 @@ export class LLMClient {
   }
 }
 
-// Singleton factory for server-side use
-let clientInstance: LLMClient | null = null;
+// Thread-safe Map-based factory for server-side use
+// Each model gets its own client instance to prevent race conditions
+const clientInstances = new Map<string, LLMClient>();
 
-export function getLLMClient(model?: string): LLMClient {
-  if (!clientInstance || (model && clientInstance.model !== model)) {
-    clientInstance = new LLMClient({
-      model: model || 'openai/gpt-4o',
-      provider: 'openrouter',
-    });
+export function getLLMClient(model: string = 'openai/gpt-4o'): LLMClient {
+  const cacheKey = model;
+
+  if (!clientInstances.has(cacheKey)) {
+    clientInstances.set(
+      cacheKey,
+      new LLMClient({
+        model,
+        provider: 'openrouter',
+      })
+    );
   }
-  return clientInstance;
+
+  return clientInstances.get(cacheKey)!;
+}
+
+/**
+ * Clear all cached LLM clients (useful for testing)
+ */
+export function clearLLMClientCache(): void {
+  clientInstances.clear();
 }

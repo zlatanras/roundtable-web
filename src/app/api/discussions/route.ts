@@ -5,38 +5,43 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CreateDiscussionRequest, DEFAULT_EXPERTS } from '@/types';
-import { v4 as uuidv4 } from 'uuid';
-
-// In-memory storage for demo (replace with Prisma in production)
-const discussions = new Map<string, any>();
-const panels = new Map<string, any>();
-
-// Initialize default panel
-const defaultPanelId = 'default-nordticker';
-panels.set(defaultPanelId, {
-  id: defaultPanelId,
-  name: 'NORDticker Experts',
-  description: 'Expert panel for digital marketing and web development discussions',
-  isDefault: true,
-  isPublic: true,
-  experts: DEFAULT_EXPERTS.map((e, i) => ({ ...e, id: `expert-${i}`, panelId: defaultPanelId })),
-});
+import { discussionRepository, expertPanelRepository, DEFAULT_PANEL_ID } from '@/repositories';
+import {
+  CreateDiscussionSchema,
+  PaginationSchema,
+  validateRequest,
+} from '@/lib/validation';
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitResponse,
+} from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateDiscussionRequest = await request.json();
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientId, 'createDiscussion');
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetIn);
+    }
 
-    // Validate required fields
-    if (!body.topic) {
+    const body = await request.json();
+
+    // Validate input with Zod (includes sanitization)
+    const validation = validateRequest(CreateDiscussionSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Topic is required' },
+        { error: validation.error, details: validation.details },
         { status: 400 }
       );
     }
 
-    const panelId = body.panelId || defaultPanelId;
-    const panel = panels.get(panelId);
+    const data = validation.data;
+
+    // Get or validate panel
+    const panelId = data.panelId || DEFAULT_PANEL_ID;
+    const panel = await expertPanelRepository.findByIdWithExperts(panelId);
 
     if (!panel) {
       return NextResponse.json(
@@ -45,27 +50,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const discussion = {
-      id: uuidv4(),
-      title: body.title || `Discussion: ${body.topic.slice(0, 50)}...`,
-      topic: body.topic,
-      status: 'PENDING',
-      totalRounds: body.totalRounds || 4,
-      currentRound: 0,
-      language: body.language || 'en',
-      model: body.model || 'anthropic/claude-sonnet-4.5',
-      moderatorMode: body.moderatorMode || false,
+    // Create discussion
+    const discussion = await discussionRepository.create({
+      ...data,
       panelId,
-      panel,
-      messages: [],
-      userId: 'demo-user', // Replace with auth
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      userId: 'demo-user', // TODO: Replace with auth
+    });
 
-    discussions.set(discussion.id, discussion);
-
-    return NextResponse.json(discussion, { status: 201 });
+    return NextResponse.json(
+      { ...discussion, panel },
+      {
+        status: 201,
+        headers: {
+          'X-RateLimit-Remaining': String(rateLimit.remaining),
+        },
+      }
+    );
   } catch (error) {
     console.error('Failed to create discussion:', error);
     return NextResponse.json(
@@ -77,31 +77,42 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const offset = parseInt(searchParams.get('offset') || '0');
-
-    let allDiscussions = Array.from(discussions.values());
-
-    // Filter by status if provided
-    if (status) {
-      allDiscussions = allDiscussions.filter((d) => d.status === status);
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientId, 'general');
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetIn);
     }
 
-    // Sort by createdAt descending
-    allDiscussions.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    const { searchParams } = new URL(request.url);
+
+    // Validate pagination params
+    const validation = validateRequest(PaginationSchema, {
+      limit: searchParams.get('limit'),
+      offset: searchParams.get('offset'),
+      status: searchParams.get('status'),
+    });
+
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: validation.error, details: validation.details },
+        { status: 400 }
+      );
+    }
+
+    const { limit, offset, status } = validation.data;
+
+    const result = await discussionRepository.list(
+      { status },
+      limit,
+      offset
     );
 
-    // Paginate
-    const paginated = allDiscussions.slice(offset, offset + limit);
-
     return NextResponse.json({
-      discussions: paginated,
-      total: allDiscussions.length,
-      limit,
-      offset,
+      discussions: result.data,
+      total: result.total,
+      limit: result.limit,
+      offset: result.offset,
     });
   } catch (error) {
     console.error('Failed to list discussions:', error);
@@ -111,6 +122,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-// Export for use in other routes
-export { discussions, panels, defaultPanelId };

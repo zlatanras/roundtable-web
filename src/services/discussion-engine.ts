@@ -304,12 +304,37 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
   }
 
   /**
+   * Safely parse JSON from LLM response with fallback
+   */
+  private safeParseJSON(text: string): Record<string, unknown> | null {
+    try {
+      // Remove markdown code blocks if present
+      const cleaned = text.replace(/```json\n?|\n?```/g, '').trim();
+
+      // Try to extract JSON object from response
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      }
+
+      // If no object found, try parsing the whole thing
+      return JSON.parse(cleaned) as Record<string, unknown>;
+    } catch (error) {
+      console.warn('Failed to parse JSON from LLM response:', error);
+      return null;
+    }
+  }
+
+  /**
    * Run a single expert's turn and yield SSE events
+   * Includes retry logic for transient failures
    */
   async *runExpertTurn(
     expert: Expert,
-    roundNum: number
+    roundNum: number,
+    retryCount: number = 0
   ): AsyncGenerator<SSEEvent, void, unknown> {
+    const MAX_RETRIES = 2;
     const debateStyle = this.getDebateStyle();
 
     yield {
@@ -340,6 +365,11 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
         yield { type: 'token', content: token };
       }
 
+      // Validate we got meaningful content
+      if (fullContent.trim().length < 20) {
+        throw new Error('Response too short, possibly failed');
+      }
+
       // Track expert's positions
       const keyPoints = this.extractKeyPoints(fullContent);
       const existingPoints = this.state.expertPositions.get(expert.name) || [];
@@ -367,9 +397,19 @@ Reply with ONLY a number between 0.0 and 1.0, nothing else.`;
         fullContent,
       };
     } catch (error) {
+      // Retry on transient failures
+      if (retryCount < MAX_RETRIES) {
+        console.warn(`Retrying ${expert.name}'s turn (attempt ${retryCount + 2}/${MAX_RETRIES + 1})`);
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+        yield* this.runExpertTurn(expert, roundNum, retryCount + 1);
+        return;
+      }
+
+      // After max retries, yield error but continue discussion
       yield {
         type: 'error',
-        message: `Error getting response from ${expert.name}: ${error}`,
+        message: `Failed to get response from ${expert.name} after ${MAX_RETRIES + 1} attempts: ${error}`,
       };
     }
   }
@@ -479,37 +519,56 @@ Guidelines:
 
 Respond ONLY with valid JSON, no additional text.`;
 
+    const fallbackSummary: DiscussionSummary = {
+      keyTakeaways: ['Discussion completed successfully'],
+      actionItems: ['Review the discussion transcript for detailed insights'],
+      sentiment: 'neutral',
+      sentimentExplanation: 'Unable to analyze sentiment',
+      consensusLevel: this.state.consensusScore,
+      consensusExplanation: 'Based on automated consensus scoring',
+      nextSteps: 'Review the expert recommendations and prioritize next steps.',
+    };
+
     try {
       const response = await this.defaultLlmClient.generateResponse(summaryPrompt, {
         maxTokens: 1000,
         temperature: 0.3,
       });
 
-      // Parse the JSON response
-      const cleanedResponse = response.replace(/```json\n?|\n?```/g, '').trim();
-      const parsed = JSON.parse(cleanedResponse);
+      // Use robust JSON parsing
+      const parsed = this.safeParseJSON(response);
+
+      if (!parsed) {
+        console.warn('Could not parse summary response, using fallback');
+        return fallbackSummary;
+      }
+
+      // Validate and normalize the parsed response
+      const validSentiments = ['positive', 'neutral', 'mixed', 'negative'] as const;
+      type ValidSentiment = typeof validSentiments[number];
+      const parsedSentiment = parsed.sentiment as string | undefined;
+      const sentiment: ValidSentiment = validSentiments.includes(parsedSentiment as ValidSentiment)
+        ? (parsedSentiment as ValidSentiment)
+        : 'neutral';
 
       return {
-        keyTakeaways: parsed.keyTakeaways || [],
-        actionItems: parsed.actionItems || [],
-        sentiment: parsed.sentiment || 'neutral',
-        sentimentExplanation: parsed.sentimentExplanation || '',
-        consensusLevel: typeof parsed.consensusLevel === 'number' ? parsed.consensusLevel : this.state.consensusScore,
-        consensusExplanation: parsed.consensusExplanation || '',
-        nextSteps: parsed.nextSteps || '',
+        keyTakeaways: Array.isArray(parsed.keyTakeaways)
+          ? (parsed.keyTakeaways as string[]).slice(0, 5)
+          : fallbackSummary.keyTakeaways,
+        actionItems: Array.isArray(parsed.actionItems)
+          ? (parsed.actionItems as string[]).slice(0, 5)
+          : fallbackSummary.actionItems,
+        sentiment,
+        sentimentExplanation: String(parsed.sentimentExplanation || ''),
+        consensusLevel: typeof parsed.consensusLevel === 'number'
+          ? Math.min(1, Math.max(0, parsed.consensusLevel))
+          : this.state.consensusScore,
+        consensusExplanation: String(parsed.consensusExplanation || ''),
+        nextSteps: String(parsed.nextSteps || ''),
       };
     } catch (error) {
       console.error('Failed to generate summary:', error);
-      // Return a fallback summary
-      return {
-        keyTakeaways: ['Discussion completed successfully'],
-        actionItems: ['Review the discussion transcript for detailed insights'],
-        sentiment: 'neutral',
-        sentimentExplanation: 'Unable to analyze sentiment',
-        consensusLevel: this.state.consensusScore,
-        consensusExplanation: 'Based on automated consensus scoring',
-        nextSteps: 'Review the expert recommendations and prioritize next steps.',
-      };
+      return fallbackSummary;
     }
   }
 

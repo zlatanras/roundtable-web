@@ -1,22 +1,30 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { t, type Language } from '@/lib/i18n';
 
 interface RoundIndicatorProps {
   round: number;
   totalRounds: number;
   consensusScore?: number;
+  language?: Language;
 }
 
 export function RoundIndicator({
   round,
   totalRounds,
   consensusScore,
+  language = 'en',
 }: RoundIndicatorProps) {
   const isLastRound = round === totalRounds;
   const isFinalRound = round >= totalRounds && totalRounds >= 4;
 
   const getRoundLabel = () => {
+    if (language === 'de') {
+      if (round === 1) return 'Erste Einschätzungen';
+      if (isFinalRound) return 'Finale Konsensrunde';
+      return 'Experten-Austausch';
+    }
     if (round === 1) return 'Initial Assessments';
     if (isFinalRound) return 'Final Consensus';
     return 'Expert Cross-Examination';
@@ -37,7 +45,7 @@ export function RoundIndicator({
         )}
       >
         <span>
-          {isFinalRound ? '🤝' : round === 1 ? '🔥' : '🎯'} Round {round}
+          {isFinalRound ? '🤝' : round === 1 ? '🔥' : '🎯'} {t('round.indicator', language)} {round}
         </span>
         <span className="text-slate-400 dark:text-slate-500">·</span>
         <span>{getRoundLabel()}</span>
@@ -58,7 +66,7 @@ export function RoundIndicator({
               : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
           )}
         >
-          <span>Consensus:</span>
+          <span>{t('round.consensus', language)}:</span>
           <span className="font-semibold">{Math.round(consensusScore * 100)}%</span>
         </div>
       )}

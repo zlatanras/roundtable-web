@@ -4,11 +4,19 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useDiscussionStore } from '@/stores/discussion';
+import { t, type Language } from '@/lib/i18n';
 
-export function ModeratorInput() {
+interface ModeratorInputProps {
+  language?: Language;
+}
+
+export function ModeratorInput({ language = 'en' }: ModeratorInputProps) {
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { discussionId, setShowModeratorInput, addMessage, currentRound } = useDiscussionStore();
+  const discussionId = useDiscussionStore((state) => state.discussionId);
+  const setShowModeratorInput = useDiscussionStore((state) => state.setShowModeratorInput);
+  const addMessage = useDiscussionStore((state) => state.addMessage);
+  const currentRound = useDiscussionStore((state) => state.currentRound);
 
   const handleSubmit = async () => {
     if (!content.trim() || !discussionId) return;
@@ -44,6 +52,13 @@ export function ModeratorInput() {
     setShowModeratorInput(false);
   };
 
+  const modeLabel = language === 'de' ? 'Moderator-Modus' : 'Moderator Mode';
+  const modeDescription = language === 'de'
+    ? 'Fügen Sie einen Kommentar oder eine Frage hinzu, um die Diskussion zu lenken, oder überspringen Sie.'
+    : 'Add a comment or question to guide the discussion, or skip to continue.';
+  const addingText = language === 'de' ? 'Hinzufügen...' : 'Adding...';
+  const addCommentText = language === 'de' ? 'Kommentar hinzufügen' : 'Add Comment';
+
   return (
     <div className="border-t border-slate-200 dark:border-slate-800 p-4 bg-indigo-50 dark:bg-indigo-950/30">
       <div className="flex items-start gap-3">
@@ -66,17 +81,17 @@ export function ModeratorInput() {
         <div className="flex-1 space-y-3">
           <div>
             <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-              🎙️ Moderator Mode
+              🎙️ {modeLabel}
             </p>
             <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70">
-              Add a comment or question to guide the discussion, or skip to continue.
+              {modeDescription}
             </p>
           </div>
 
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Type your comment or question..."
+            placeholder={t('moderator.placeholder', language)}
             className="min-h-[80px] bg-white dark:bg-slate-900"
             disabled={isSubmitting}
           />
@@ -88,14 +103,14 @@ export function ModeratorInput() {
               onClick={handleSkip}
               disabled={isSubmitting}
             >
-              Skip
+              {t('moderator.skip', language)}
             </Button>
             <Button
               size="sm"
               onClick={handleSubmit}
               disabled={!content.trim() || isSubmitting}
             >
-              {isSubmitting ? 'Adding...' : 'Add Comment'}
+              {isSubmitting ? addingText : addCommentText}
             </Button>
           </div>
         </div>

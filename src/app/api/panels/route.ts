@@ -5,13 +5,24 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
-import { panels, defaultPanelId } from '../discussions/route';
-import { CreatePanelRequest } from '@/types';
+import { expertPanelRepository } from '@/repositories';
+import { CreatePanelSchema, validateRequest } from '@/lib/validation';
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitResponse,
+} from '@/lib/rate-limit';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const allPanels = Array.from(panels.values());
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientId, 'general');
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetIn);
+    }
+
+    const allPanels = await expertPanelRepository.list();
 
     return NextResponse.json({
       panels: allPanels,
@@ -28,44 +39,35 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CreatePanelRequest = await request.json();
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientId, 'panelOperations');
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetIn);
+    }
 
-    if (!body.name) {
+    const body = await request.json();
+
+    // Validate input with Zod
+    const validation = validateRequest(CreatePanelSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Panel name is required' },
+        { error: validation.error, details: validation.details },
         { status: 400 }
       );
     }
 
-    if (!body.experts || body.experts.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one expert is required' },
-        { status: 400 }
-      );
-    }
+    const panel = await expertPanelRepository.create({
+      ...validation.data,
+      userId: 'demo-user', // TODO: Replace with auth
+    });
 
-    const panelId = uuidv4();
-
-    const panel = {
-      id: panelId,
-      name: body.name,
-      description: body.description || null,
-      isDefault: false,
-      isPublic: false,
-      experts: body.experts.map((e, i) => ({
-        ...e,
-        id: `${panelId}-expert-${i}`,
-        panelId,
-        color: e.color || `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`,
-      })),
-      userId: 'demo-user',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    panels.set(panelId, panel);
-
-    return NextResponse.json(panel, { status: 201 });
+    return NextResponse.json(panel, {
+      status: 201,
+      headers: {
+        'X-RateLimit-Remaining': String(rateLimit.remaining),
+      },
+    });
   } catch (error) {
     console.error('Failed to create panel:', error);
     return NextResponse.json(

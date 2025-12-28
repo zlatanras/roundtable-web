@@ -4,10 +4,15 @@
  */
 
 import { NextRequest } from 'next/server';
-import { discussions, panels } from '../../route';
+import { discussions, panels } from '@/repositories';
 import { DiscussionEngine } from '@/services/discussion-engine';
 import { LLMClient } from '@/services/llm-client';
 import { SSEEvent } from '@/types';
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitResponse,
+} from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +22,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Rate limiting for expensive streaming operations
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(clientId, 'startStream');
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.resetIn);
+  }
+
   const discussion = discussions.get(id);
 
   if (!discussion) {
@@ -34,14 +47,35 @@ export async function GET(
     );
   }
 
+  // Create AbortController for cleanup on disconnect
+  const abortController = new AbortController();
+  let isAborted = false;
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (event: SSEEvent) => {
-        const data = `data: ${JSON.stringify(event)}\n\n`;
-        controller.enqueue(encoder.encode(data));
+        if (isAborted) return;
+        try {
+          const data = `data: ${JSON.stringify(event)}\n\n`;
+          controller.enqueue(encoder.encode(data));
+        } catch {
+          // Controller might be closed
+        }
       };
+
+      // Handle client disconnect
+      const cleanup = () => {
+        isAborted = true;
+        abortController.abort();
+        if (discussion.status === 'IN_PROGRESS') {
+          discussion.status = 'PAUSED';
+        }
+      };
+
+      // Listen for abort signal from request
+      request.signal.addEventListener('abort', cleanup);
 
       try {
         // Initialize LLM client
@@ -67,8 +101,14 @@ export async function GET(
         discussion.status = 'IN_PROGRESS';
         discussion.startedAt = new Date().toISOString();
 
-        // Run the discussion
+        // Run the discussion with abort checking
         for await (const event of engine.runDiscussion()) {
+          // Check if client disconnected
+          if (isAborted || abortController.signal.aborted) {
+            console.log(`Discussion ${id} aborted - client disconnected`);
+            break;
+          }
+
           // Add discussionId to relevant events
           if (event.type === 'discussion_complete') {
             event.discussionId = id;
@@ -81,7 +121,7 @@ export async function GET(
             const expertMessage = {
               id: event.messageId,
               content: event.fullContent,
-              role: 'EXPERT',
+              role: 'EXPERT' as const,
               round: engine.getState().currentRound,
               expertId: event.expertId,
               createdAt: new Date().toISOString(),
@@ -96,19 +136,36 @@ export async function GET(
           }
         }
 
-        // Mark as completed
-        discussion.status = 'COMPLETED';
-        discussion.completedAt = new Date().toISOString();
-
+        // Mark as completed only if not aborted
+        if (!isAborted) {
+          discussion.status = 'COMPLETED';
+          discussion.completedAt = new Date().toISOString();
+        }
       } catch (error) {
         console.error('Discussion stream error:', error);
-        sendEvent({
-          type: 'error',
-          message: error instanceof Error ? error.message : 'Unknown error occurred',
-        });
-        discussion.status = 'PAUSED';
+        if (!isAborted) {
+          sendEvent({
+            type: 'error',
+            message: error instanceof Error ? error.message : 'Unknown error occurred',
+          });
+          discussion.status = 'PAUSED';
+        }
       } finally {
-        controller.close();
+        request.signal.removeEventListener('abort', cleanup);
+        try {
+          controller.close();
+        } catch {
+          // Already closed
+        }
+      }
+    },
+
+    cancel() {
+      // Called when the stream is cancelled
+      isAborted = true;
+      abortController.abort();
+      if (discussion.status === 'IN_PROGRESS') {
+        discussion.status = 'PAUSED';
       }
     },
   });
@@ -119,6 +176,7 @@ export async function GET(
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
+      'X-RateLimit-Remaining': String(rateLimit.remaining),
     },
   });
 }

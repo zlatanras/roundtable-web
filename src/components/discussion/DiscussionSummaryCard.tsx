@@ -3,19 +3,37 @@
 import { DiscussionSummary } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { t, type Language } from '@/lib/i18n';
 
 interface DiscussionSummaryCardProps {
   summary: DiscussionSummary;
+  language?: Language;
 }
 
-const sentimentConfig = {
-  positive: { label: 'Positiv', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', emoji: '😊' },
-  neutral: { label: 'Neutral', color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200', emoji: '😐' },
-  mixed: { label: 'Gemischt', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', emoji: '🤔' },
-  negative: { label: 'Kritisch', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', emoji: '😟' },
-};
+const getSentimentConfig = (language: Language) => ({
+  positive: {
+    label: language === 'de' ? 'Positiv' : 'Positive',
+    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    emoji: '😊',
+  },
+  neutral: {
+    label: language === 'de' ? 'Neutral' : 'Neutral',
+    color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200',
+    emoji: '😐',
+  },
+  mixed: {
+    label: language === 'de' ? 'Gemischt' : 'Mixed',
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    emoji: '🤔',
+  },
+  negative: {
+    label: language === 'de' ? 'Kritisch' : 'Critical',
+    color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    emoji: '😟',
+  },
+});
 
-function ConsensusBar({ level }: { level: number }) {
+function ConsensusBar({ level, language }: { level: number; language: Language }) {
   const percentage = Math.round(level * 100);
   const getColor = () => {
     if (percentage >= 80) return 'bg-green-500';
@@ -27,7 +45,9 @@ function ConsensusBar({ level }: { level: number }) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
-        <span className="text-slate-600 dark:text-slate-400">Konsens-Level</span>
+        <span className="text-slate-600 dark:text-slate-400">
+          {t('summary.consensus', language)}
+        </span>
         <span className="font-medium">{percentage}%</span>
       </div>
       <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -40,8 +60,15 @@ function ConsensusBar({ level }: { level: number }) {
   );
 }
 
-export function DiscussionSummaryCard({ summary }: DiscussionSummaryCardProps) {
+export function DiscussionSummaryCard({ summary, language = 'en' }: DiscussionSummaryCardProps) {
+  const sentimentConfig = getSentimentConfig(language);
   const sentiment = sentimentConfig[summary.sentiment] || sentimentConfig.neutral;
+
+  const summaryTitle = language === 'de' ? 'Zusammenfassung' : 'Summary';
+  const summarySubtitle = language === 'de'
+    ? 'Moderator-Analyse der Diskussion'
+    : 'Moderator analysis of the discussion';
+  const actionItemsTitle = language === 'de' ? 'To-Dos / Handlungsempfehlungen' : 'To-Dos / Action Items';
 
   return (
     <Card className="border-2 border-indigo-200 dark:border-indigo-800 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/50 dark:to-slate-900">
@@ -53,9 +80,9 @@ export function DiscussionSummaryCard({ summary }: DiscussionSummaryCardProps) {
             </svg>
           </div>
           <div>
-            <CardTitle className="text-xl">Zusammenfassung</CardTitle>
+            <CardTitle className="text-xl">{summaryTitle}</CardTitle>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Moderator-Analyse der Diskussion
+              {summarySubtitle}
             </p>
           </div>
         </div>
@@ -75,7 +102,7 @@ export function DiscussionSummaryCard({ summary }: DiscussionSummaryCardProps) {
           </div>
 
           <div className="p-4 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <ConsensusBar level={summary.consensusLevel} />
+            <ConsensusBar level={summary.consensusLevel} language={language} />
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               {summary.consensusExplanation}
             </p>
@@ -86,7 +113,7 @@ export function DiscussionSummaryCard({ summary }: DiscussionSummaryCardProps) {
         <div className="space-y-3">
           <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <span className="text-lg">💡</span>
-            Wichtigste Erkenntnisse
+            {t('summary.keyTakeaways', language)}
           </h3>
           <ul className="space-y-2">
             {summary.keyTakeaways.map((takeaway, index) => (
@@ -107,7 +134,7 @@ export function DiscussionSummaryCard({ summary }: DiscussionSummaryCardProps) {
         <div className="space-y-3">
           <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <span className="text-lg">✅</span>
-            To-Dos / Action Items
+            {actionItemsTitle}
           </h3>
           <ul className="space-y-2">
             {summary.actionItems.map((item, index) => (
@@ -129,7 +156,7 @@ export function DiscussionSummaryCard({ summary }: DiscussionSummaryCardProps) {
         <div className="p-4 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800">
           <h3 className="font-semibold text-indigo-900 dark:text-indigo-100 flex items-center gap-2 mb-2">
             <span className="text-lg">🚀</span>
-            Nächste Schritte
+            {t('summary.nextSteps', language)}
           </h3>
           <p className="text-indigo-800 dark:text-indigo-200">
             {summary.nextSteps}

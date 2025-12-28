@@ -5,15 +5,25 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-// Import shared storage
-import { discussions } from '../route';
+import { discussions } from '@/repositories';
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitResponse,
+} from '@/lib/rate-limit';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientId, 'general');
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetIn);
+    }
+
     const { id } = await params;
     const discussion = discussions.get(id);
 
@@ -39,6 +49,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientId, 'general');
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetIn);
+    }
+
     const { id } = await params;
 
     if (!discussions.has(id)) {
